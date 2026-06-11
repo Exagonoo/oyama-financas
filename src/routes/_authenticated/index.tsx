@@ -1,8 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { z } from "zod";
 import {
   accountBalancesQuery,
   accountsQuery,
@@ -36,12 +34,10 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
-const searchSchema = z.object({
-  mes: fallback(z.string().optional(), undefined),
-});
-
 export const Route = createFileRoute("/_authenticated/")({
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (search: Record<string, unknown>): { mes?: string } => ({
+    mes: typeof search.mes === "string" ? search.mes : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Início — OYAMA Finanças" },
