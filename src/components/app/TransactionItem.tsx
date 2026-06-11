@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Check, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Check, MoreVertical, Pencil, Repeat2, Trash2 } from "lucide-react";
 import { CategoryIcon } from "./CategoryIcon";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -92,6 +92,17 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
           {tx.status === "pending" && (
             <Badge variant="outline" className="border-warning/40 text-warning">
               Pendente
+            </Badge>
+          )}
+          {tx.recurrence_type === "installments" && tx.recurrence_index && tx.recurrence_total && (
+            <Badge variant="outline" className="gap-1 text-muted-foreground">
+              <Repeat2 className="h-3 w-3" />
+              {tx.recurrence_index}/{tx.recurrence_total}
+            </Badge>
+          )}
+          {(tx.recurrence_type === "fixed" || tx.recurrence_type === "until_date") && (
+            <Badge variant="outline" className="gap-1 text-muted-foreground">
+              <Repeat2 className="h-3 w-3" />
             </Badge>
           )}
         </div>

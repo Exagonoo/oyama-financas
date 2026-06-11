@@ -25,17 +25,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { accountsQuery, categoriesQuery, invalidateFinance } from "@/lib/queries";
 import { todayISO } from "@/lib/format";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Repeat2 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type TxRow = Database["public"]["Tables"]["transactions"]["Row"];
 type TxType = Database["public"]["Enums"]["transaction_type"];
+type RecurrenceType = "none" | "fixed" | "until_date" | "installments";
 
 interface TransactionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: TxRow | null;
   defaultType?: TxType;
+}
+
+function addMonths(isoDate: string, months: number): string {
+  const d = new Date(isoDate + "T00:00:00");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+function generateUUID(): string {
+  return crypto.randomUUID();
 }
 
 export function TransactionForm({
@@ -57,6 +68,11 @@ export function TransactionForm({
   const [categoryId, setCategoryId] = useState<string>("");
   const [completed, setCompleted] = useState(true);
   const [notes, setNotes] = useState("");
+
+  // Recurrence (only for new transactions)
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("none");
+  const [recurrenceUntil, setRecurrenceUntil] = useState("");
+  const [recurrenceTotal, setRecurrenceTotal] = useState("2");
 
   useEffect(() => {
     if (!open) return;
@@ -80,6 +96,9 @@ export function TransactionForm({
       setCategoryId("");
       setCompleted(true);
       setNotes("");
+      setRecurrenceType("none");
+      setRecurrenceUntil("");
+      setRecurrenceTotal("2");
     }
   }, [open, transaction, defaultType, accounts]);
 
@@ -101,12 +120,11 @@ export function TransactionForm({
         throw new Error("Selecione uma conta de destino diferente");
       }
 
-      const payload = {
+      const basePayload = {
         user_id: userId,
         type,
         description: description.trim() || (type === "transfer" ? "Transferência" : ""),
         amount: value,
-        date,
         account_id: accountId,
         transfer_account_id: type === "transfer" ? transferAccountId : null,
         category_id: type === "transfer" ? null : categoryId || null,
@@ -117,13 +135,52 @@ export function TransactionForm({
       if (transaction) {
         const { error } = await supabase
           .from("transactions")
-          .update(payload)
+          .update({ ...basePayload, date })
           .eq("id", transaction.id);
         if (error) throw error;
-      } else {
-        const { error } = await supabase.from("transactions").insert(payload);
-        if (error) throw error;
+        return;
       }
+
+      // Resolve occurrences for new transaction
+      const occurrences: string[] = [date];
+
+      if (recurrenceType === "fixed") {
+        for (let i = 1; i < 24; i++) occurrences.push(addMonths(date, i));
+      } else if (recurrenceType === "until_date") {
+        if (!recurrenceUntil) throw new Error("Informe a data final da recorrência");
+        if (recurrenceUntil <= date) throw new Error("A data final deve ser após a data inicial");
+        let i = 1;
+        while (true) {
+          const next = addMonths(date, i++);
+          if (next > recurrenceUntil) break;
+          occurrences.push(next);
+        }
+      } else if (recurrenceType === "installments") {
+        const total = parseInt(recurrenceTotal, 10);
+        if (!Number.isFinite(total) || total < 2 || total > 360)
+          throw new Error("Informe um número de parcelas entre 2 e 360");
+        for (let i = 1; i < total; i++) occurrences.push(addMonths(date, i));
+      }
+
+      const groupId = occurrences.length > 1 ? generateUUID() : null;
+      const total = occurrences.length > 1 ? occurrences.length : null;
+
+      const rows = occurrences.map((d, idx) => ({
+        ...basePayload,
+        date: d,
+        recurrence_type: recurrenceType === "none" ? "none" : recurrenceType,
+        recurrence_group_id: groupId,
+        recurrence_index: total ? idx + 1 : null,
+        recurrence_total: total,
+        recurrence_until: recurrenceType === "until_date" ? recurrenceUntil : null,
+        description:
+          recurrenceType === "installments" && total
+            ? `${basePayload.description} (${idx + 1}/${total})`
+            : basePayload.description,
+      }));
+
+      const { error } = await supabase.from("transactions").insert(rows);
+      if (error) throw error;
     },
     onSuccess: () => {
       invalidateFinance(queryClient);
@@ -134,6 +191,7 @@ export function TransactionForm({
   });
 
   const noAccounts = activeAccounts.length === 0;
+  const isNew = !transaction;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -288,6 +346,85 @@ export function TransactionForm({
               </div>
               <Switch id="status" checked={completed} onCheckedChange={setCompleted} />
             </div>
+
+            {/* Recurrence — only for new transactions */}
+            {isNew && (
+              <div className="space-y-3 rounded-lg border border-border bg-card/40 px-3 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Repeat2 className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="recurrence-toggle" className="cursor-pointer">
+                      Recorrente
+                    </Label>
+                  </div>
+                  <Switch
+                    id="recurrence-toggle"
+                    checked={recurrenceType !== "none"}
+                    onCheckedChange={(v) => setRecurrenceType(v ? "fixed" : "none")}
+                  />
+                </div>
+
+                {recurrenceType !== "none" && (
+                  <div className="space-y-3 pt-1">
+                    <div className="space-y-2">
+                      <Label>Tipo de recorrência</Label>
+                      <Select
+                        value={recurrenceType}
+                        onValueChange={(v) => setRecurrenceType(v as RecurrenceType)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed">Fixa (sem vencimento)</SelectItem>
+                          <SelectItem value="until_date">Por data (repete até…)</SelectItem>
+                          <SelectItem value="installments">Parcelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {recurrenceType === "until_date" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="rec-until">Repetir até</Label>
+                        <Input
+                          id="rec-until"
+                          type="date"
+                          value={recurrenceUntil}
+                          onChange={(e) => setRecurrenceUntil(e.target.value)}
+                          min={addMonths(date, 1)}
+                          required
+                        />
+                      </div>
+                    )}
+
+                    {recurrenceType === "installments" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="rec-total">Número de parcelas</Label>
+                        <Input
+                          id="rec-total"
+                          inputMode="numeric"
+                          value={recurrenceTotal}
+                          onChange={(e) => setRecurrenceTotal(e.target.value)}
+                          min={2}
+                          max={360}
+                          placeholder="Ex.: 12"
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Serão criados {Math.max(2, parseInt(recurrenceTotal) || 2)} lançamentos mensais a partir de {date}.
+                        </p>
+                      </div>
+                    )}
+
+                    {recurrenceType === "fixed" && (
+                      <p className="text-xs text-muted-foreground">
+                        Serão criados 24 lançamentos mensais a partir de {date}.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="notes">Observações</Label>

@@ -140,6 +140,11 @@ export type Database = {
           description: string
           id: string
           notes: string | null
+          recurrence_group_id: string | null
+          recurrence_index: number | null
+          recurrence_total: number | null
+          recurrence_type: string
+          recurrence_until: string | null
           status: Database["public"]["Enums"]["transaction_status"]
           transfer_account_id: string | null
           type: Database["public"]["Enums"]["transaction_type"]
@@ -154,6 +159,11 @@ export type Database = {
           description: string
           id?: string
           notes?: string | null
+          recurrence_group_id?: string | null
+          recurrence_index?: number | null
+          recurrence_total?: number | null
+          recurrence_type?: string
+          recurrence_until?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
           transfer_account_id?: string | null
           type: Database["public"]["Enums"]["transaction_type"]
@@ -168,6 +178,11 @@ export type Database = {
           description?: string
           id?: string
           notes?: string | null
+          recurrence_group_id?: string | null
+          recurrence_index?: number | null
+          recurrence_total?: number | null
+          recurrence_type?: string
+          recurrence_until?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
           transfer_account_id?: string | null
           type?: Database["public"]["Enums"]["transaction_type"]
