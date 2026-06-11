@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { z } from "zod";
 import {
   accountsQuery,
   categoriesQuery,
@@ -26,12 +24,10 @@ import type { Database } from "@/integrations/supabase/types";
 
 type TxRow = Database["public"]["Tables"]["transactions"]["Row"];
 
-const searchSchema = z.object({
-  mes: fallback(z.string().optional(), undefined),
-});
-
 export const Route = createFileRoute("/_authenticated/lancamentos")({
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (search: Record<string, unknown>): { mes?: string } => ({
+    mes: typeof search.mes === "string" ? search.mes : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Lançamentos — OYAMA Finanças" },

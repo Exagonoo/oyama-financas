@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { z } from "zod";
 import {
   budgetsMonthQuery,
   categoriesQuery,
@@ -48,12 +46,10 @@ import { formatBRL, parseMonthKey, startOfMonthISO } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const searchSchema = z.object({
-  mes: fallback(z.string().optional(), undefined),
-});
-
 export const Route = createFileRoute("/_authenticated/orcamentos")({
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (search: Record<string, unknown>): { mes?: string } => ({
+    mes: typeof search.mes === "string" ? search.mes : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Orçamentos — OYAMA Finanças" },
