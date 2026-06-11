@@ -87,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
 
         {/* Bottom nav mobile */}
-        <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-sidebar text-sidebar-foreground md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-sidebar text-sidebar-foreground safe-area-bottom md:hidden">
           {nav.map((item) => (
             <BottomLink key={item.to} {...item} />
           ))}
@@ -147,12 +147,12 @@ function BottomLink({
     <Link
       to={to}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors",
+        "flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors min-w-0",
         active ? "text-primary" : "text-sidebar-foreground/70",
       )}
     >
-      <Icon className="h-5 w-5" />
-      {label}
+      <Icon className="h-5 w-5 shrink-0" />
+      <span className="truncate w-full text-center px-0.5">{label}</span>
     </Link>
   );
 }

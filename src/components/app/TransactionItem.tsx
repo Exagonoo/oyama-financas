@@ -84,14 +84,18 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
   const displayColor = tx.type === "transfer" ? "#64748b" : category?.color ?? "#64748b";
 
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-card px-3 py-2.5">
+    <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2.5">
       <CategoryIcon icon={displayIcon} color={displayColor} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <p className="truncate text-sm font-medium">{tx.description}</p>
-          {tx.status === "pending" && (
-            <Badge variant="outline" className="border-warning/40 text-warning">
+          {tx.status === "pending" ? (
+            <Badge variant="outline" className="shrink-0 border-warning/40 text-warning">
               Pendente
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="shrink-0 border-primary/40 text-primary">
+              Pago
             </Badge>
           )}
           {tx.recurrence_type === "installments" && tx.recurrence_index && tx.recurrence_total && (
@@ -112,7 +116,7 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
           {category && ` • ${category.name}`}
         </p>
       </div>
-      <div className="text-right">
+      <div className="shrink-0 text-right">
         <p className={cn("text-sm font-semibold tabular-nums", valueClass)}>
           {sign}
           {formatBRL(Number(tx.amount))}
