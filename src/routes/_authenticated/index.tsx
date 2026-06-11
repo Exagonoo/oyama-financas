@@ -122,18 +122,8 @@ function Dashboard() {
 
       {/* Cards do mês */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <MetricCard
-          label="Receitas"
-          value={income}
-          icon={ArrowUpRight}
-          tone="success"
-        />
-        <MetricCard
-          label="Despesas"
-          value={expense}
-          icon={ArrowDownRight}
-          tone="destructive"
-        />
+        <MetricCard label="Receitas" value={income} icon={ArrowUpRight} tone="success" />
+        <MetricCard label="Despesas" value={expense} icon={ArrowDownRight} tone="destructive" />
         <MetricCard
           label="Balanço"
           value={balance}
@@ -146,20 +136,33 @@ function Dashboard() {
       {/* Pendências */}
       {pending.length > 0 && (
         <Card className="border-warning/30 bg-warning/5">
-          <CardContent className="flex items-center justify-between gap-3 pt-6">
+          <CardContent className="space-y-3 pt-6">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-warning/20 p-2 text-warning">
                 <Clock className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-medium">
-                  {pending.length} pendência(s)
-                </p>
+                <p className="text-sm font-medium">{pending.length} pendência(s)</p>
                 <p className="text-xs text-muted-foreground">
                   {formatBRL(pendingExpense)} em despesas a pagar
                 </p>
               </div>
             </div>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="w-full border-warning/30 text-warning hover:bg-warning/10 hover:text-warning"
+            >
+              <Link
+                to="/lancamentos"
+                search={{
+                  mes: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`,
+                }}
+              >
+                Ver todos os lançamentos do mês →
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       )}
