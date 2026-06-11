@@ -221,10 +221,16 @@ export function TransactionForm({
               onValueChange={(v) => v && setType(v as TxType)}
               className="grid grid-cols-3"
             >
-              <ToggleGroupItem value="expense" className="data-[state=on]:bg-destructive/20 data-[state=on]:text-destructive">
+              <ToggleGroupItem
+                value="expense"
+                className="data-[state=on]:bg-destructive/20 data-[state=on]:text-destructive"
+              >
                 Despesa
               </ToggleGroupItem>
-              <ToggleGroupItem value="income" className="data-[state=on]:bg-primary/20 data-[state=on]:text-primary">
+              <ToggleGroupItem
+                value="income"
+                className="data-[state=on]:bg-primary/20 data-[state=on]:text-primary"
+              >
                 Receita
               </ToggleGroupItem>
               <ToggleGroupItem value="transfer">Transferência</ToggleGroupItem>
@@ -411,7 +417,8 @@ export function TransactionForm({
                           required
                         />
                         <p className="text-xs text-muted-foreground">
-                          Serão criados {Math.max(2, parseInt(recurrenceTotal) || 2)} lançamentos mensais a partir de {date}.
+                          Serão criados {Math.max(2, parseInt(recurrenceTotal) || 2)} lançamentos
+                          mensais a partir de {date}.
                         </p>
                       </div>
                     )}

@@ -80,8 +80,8 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
         ? "text-destructive"
         : "text-muted-foreground";
 
-  const displayIcon = tx.type === "transfer" ? "repeat" : category?.icon ?? "circle";
-  const displayColor = tx.type === "transfer" ? "#64748b" : category?.color ?? "#64748b";
+  const displayIcon = tx.type === "transfer" ? "repeat" : (category?.icon ?? "circle");
+  const displayColor = tx.type === "transfer" ? "#64748b" : (category?.color ?? "#64748b");
 
   return (
     <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2.5">
@@ -154,9 +154,7 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação não pode ser desfeita.
-                </AlertDialogDescription>
+                <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
