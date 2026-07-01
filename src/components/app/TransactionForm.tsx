@@ -39,6 +39,23 @@ interface TransactionFormProps {
   defaultType?: TxType;
 }
 
+function formatCurrency(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
+}
+
+function parseCurrency(formatted: string): string {
+  const digits = formatted.replace(/\D/g, "");
+  if (!digits) return "";
+  return (parseInt(digits, 10) / 100).toFixed(2);
+}
+
 function addMonths(isoDate: string, months: number): string {
   const d = new Date(isoDate + "T00:00:00");
   d.setMonth(d.getMonth() + months);
@@ -79,7 +96,7 @@ export function TransactionForm({
     if (transaction) {
       setType(transaction.type);
       setDescription(transaction.description);
-      setAmount(String(transaction.amount));
+      setAmount(formatCurrency(String(Math.round(Number(transaction.amount) * 100))));
       setDate(transaction.date);
       setAccountId(transaction.account_id);
       setTransferAccountId(transaction.transfer_account_id ?? "");
@@ -113,7 +130,7 @@ export function TransactionForm({
       const userId = userData.user?.id;
       if (!userId) throw new Error("Não autenticado");
 
-      const value = parseFloat(amount.replace(",", "."));
+      const value = parseFloat(parseCurrency(amount));
       if (!Number.isFinite(value) || value <= 0) throw new Error("Valor inválido");
       if (!accountId) throw new Error("Selecione uma conta");
       if (type === "transfer" && (!transferAccountId || transferAccountId === accountId)) {
@@ -252,10 +269,10 @@ export function TransactionForm({
                 <Label htmlFor="amount">Valor</Label>
                 <Input
                   id="amount"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0,00"
+                  onChange={(e) => setAmount(formatCurrency(e.target.value))}
+                  placeholder="R$ 0,00"
                   required
                 />
               </div>
