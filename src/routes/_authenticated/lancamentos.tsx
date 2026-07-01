@@ -70,7 +70,7 @@ function LancamentosPage() {
     arr.push(t);
     byDay.set(t.date, arr);
   });
-  const days = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
+  const days = Array.from(byDay.keys()).sort((a, b) => a.localeCompare(b));
 
   function openNew() {
     setEditing(null);
