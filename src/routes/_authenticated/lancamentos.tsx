@@ -1,16 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import {
-  accountsQuery,
-  categoriesQuery,
-  transactionsMonthQuery,
-} from "@/lib/queries";
+import { accountsQuery, categoriesQuery, transactionsMonthQuery } from "@/lib/queries";
 import { MonthPicker } from "@/components/app/MonthPicker";
 import { TransactionItem } from "@/components/app/TransactionItem";
 import { TransactionForm } from "@/components/app/TransactionForm";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -18,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeftRight, Plus } from "lucide-react";
-import { formatDayLabel, parseMonthKey } from "@/lib/format";
+import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, PiggyBank, Plus } from "lucide-react";
+import { formatBRL, formatDayLabel, parseMonthKey } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
 type TxRow = Database["public"]["Tables"]["transactions"]["Row"];
@@ -51,6 +49,13 @@ function LancamentosPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TxRow | null>(null);
+
+  // Totais do mês — despesas = pagas + pendentes
+  const income = txs
+    .filter((t) => t.type === "income" && t.status === "completed")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+  const balance = income - expense;
 
   const filtered = txs.filter((t) => {
     if (typeFilter !== "all" && t.type !== typeFilter) return false;
@@ -88,9 +93,53 @@ function LancamentosPage() {
         </div>
       </div>
 
+      {/* Totais do mês */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Receitas</p>
+              <ArrowUpRight className="h-4 w-4 text-primary" />
+            </div>
+            <p className="mt-1 text-xl font-bold tabular-nums text-primary">{formatBRL(income)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Despesas</p>
+              <ArrowDownRight className="h-4 w-4 text-destructive" />
+            </div>
+            <p className="mt-1 text-xl font-bold tabular-nums text-destructive">
+              {formatBRL(expense)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="col-span-2 md:col-span-1">
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Balanço</p>
+              <PiggyBank
+                className={cn("h-4 w-4", balance >= 0 ? "text-primary" : "text-destructive")}
+              />
+            </div>
+            <p
+              className={cn(
+                "mt-1 text-xl font-bold tabular-nums",
+                balance >= 0 ? "text-primary" : "text-destructive",
+              )}
+            >
+              {formatBRL(balance)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os tipos</SelectItem>
             <SelectItem value="income">Receitas</SelectItem>
@@ -99,16 +148,22 @@ function LancamentosPage() {
           </SelectContent>
         </Select>
         <Select value={accountFilter} onValueChange={setAccountFilter}>
-          <SelectTrigger><SelectValue placeholder="Conta" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Conta" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as contas</SelectItem>
             {accounts.map((a) => (
-              <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              <SelectItem key={a.id} value={a.id}>
+                {a.name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
             <SelectItem value="completed">Efetivados</SelectItem>
