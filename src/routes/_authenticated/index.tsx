@@ -67,19 +67,19 @@ function Dashboard() {
   const income = completed
     .filter((t) => t.type === "income")
     .reduce((s, t) => s + Number(t.amount), 0);
-  const expense = completed
-    .filter((t) => t.type === "expense")
-    .reduce((s, t) => s + Number(t.amount), 0);
+  // Despesas = todas do mês (pagas e pendentes) — efetivado é só controle de pagamento
+  const allExpenses = monthTx.filter((t) => t.type === "expense");
+  const expense = allExpenses.reduce((s, t) => s + Number(t.amount), 0);
   const balance = income - expense;
 
   const pendingExpense = pending
     .filter((t) => t.type === "expense")
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  // Pie data
+  // Pie data — inclui despesas pendentes e pagas
   const byCategory = new Map<string, number>();
-  completed
-    .filter((t) => t.type === "expense" && t.category_id)
+  allExpenses
+    .filter((t) => t.category_id)
     .forEach((t) => {
       byCategory.set(t.category_id!, (byCategory.get(t.category_id!) ?? 0) + Number(t.amount));
     });
@@ -177,7 +177,7 @@ function Dashboard() {
             <p className="text-sm text-muted-foreground">Nenhuma despesa pendente. 🎉</p>
           ) : (
             <div className="space-y-2">
-              {accountsToPay.slice(0, 6).map((t) => (
+              {accountsToPay.map((t) => (
                 <PayItem key={t.id} tx={t} categories={categories} accounts={accounts} />
               ))}
             </div>
