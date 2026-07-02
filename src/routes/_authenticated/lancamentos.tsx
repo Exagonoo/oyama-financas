@@ -25,8 +25,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  ArrowDown,
   ArrowDownRight,
   ArrowLeftRight,
+  ArrowUp,
+  ArrowUpDown,
   ArrowUpRight,
   CalendarDays,
   Clock,
@@ -541,6 +544,50 @@ function parseCurrency(formatted: string): number {
 
 type EditCell = { id: string; field: string; value: string };
 
+function SortTh({
+  col,
+  label,
+  sortCol,
+  sortDir,
+  onSort,
+  align = "left",
+  className = "",
+}: {
+  col: string;
+  label: string;
+  sortCol: string;
+  sortDir: "asc" | "desc";
+  onSort: (col: string) => void;
+  align?: "left" | "right";
+  className?: string;
+}) {
+  const active = sortCol === col;
+  const Icon = active ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <th
+      className={cn(
+        "px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
+        align === "right" ? "text-right" : "text-left",
+        className,
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={cn(
+          "inline-flex items-center gap-1 hover:text-foreground transition-colors",
+          active && "text-foreground",
+          align === "right" && "ml-auto",
+        )}
+      >
+        {align === "right" && <Icon className="h-3 w-3" />}
+        {label}
+        {align !== "right" && <Icon className="h-3 w-3" />}
+      </button>
+    </th>
+  );
+}
+
 function ListaView({
   filtered,
   accounts,
@@ -556,8 +603,35 @@ function ListaView({
   const queryClient = useQueryClient();
   const [editCell, setEditCell] = useState<EditCell | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [sortCol, setSortCol] = useState<"date" | "category" | "account" | "status" | "amount">(
+    "date",
+  );
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
+  function toggleSort(col: typeof sortCol) {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortCol === "date") cmp = a.date.localeCompare(b.date);
+    else if (sortCol === "amount") cmp = Number(a.amount) - Number(b.amount);
+    else if (sortCol === "status") cmp = (a.status ?? "").localeCompare(b.status ?? "");
+    else if (sortCol === "category") {
+      const ca = categories.find((c) => c.id === a.category_id)?.name ?? "";
+      const cb = categories.find((c) => c.id === b.category_id)?.name ?? "";
+      cmp = ca.localeCompare(cb);
+    } else if (sortCol === "account") {
+      const aa = accounts.find((ac) => ac.id === a.account_id)?.name ?? "";
+      const ab = accounts.find((ac) => ac.id === b.account_id)?.name ?? "";
+      cmp = aa.localeCompare(ab);
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
 
   const saveMutation = useMutation({
     mutationFn: async ({ id, field, value }: EditCell) => {
@@ -622,18 +696,37 @@ function ListaView({
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Descrição
                 </th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:table-cell">
-                  Categoria
-                </th>
-                <th className="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground md:table-cell">
-                  Conta
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Valor
-                </th>
+                <SortTh
+                  col="category"
+                  label="Categoria"
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="hidden sm:table-cell"
+                />
+                <SortTh
+                  col="account"
+                  label="Conta"
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  className="hidden md:table-cell"
+                />
+                <SortTh
+                  col="status"
+                  label="Status"
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortTh
+                  col="amount"
+                  label="Valor"
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  align="right"
+                />
               </tr>
             </thead>
             <tbody>
