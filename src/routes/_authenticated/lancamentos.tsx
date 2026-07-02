@@ -412,7 +412,8 @@ function CalendarioView({
   const firstWeekday = new Date(year, monthIdx, 1).getDay();
   const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const _now = new Date();
+  const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
 
   const cells: (number | null)[] = [
     ...Array(firstWeekday).fill(null),
