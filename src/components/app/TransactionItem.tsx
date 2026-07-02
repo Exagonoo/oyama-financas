@@ -65,17 +65,18 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const effectMutation = useMutation({
-    mutationFn: async () => {
+  const toggleStatusMutation = useMutation({
+    mutationFn: async (newStatus: "completed" | "pending") => {
       const { error } = await supabase
         .from("transactions")
-        .update({ status: "completed" })
+        .update({ status: newStatus })
         .eq("id", tx.id);
       if (error) throw error;
+      return newStatus;
     },
-    onSuccess: () => {
+    onSuccess: (newStatus) => {
       invalidateFinance(queryClient);
-      toast.success("Lançamento efetivado");
+      toast.success(newStatus === "completed" ? "Despesa paga" : "Revertido para despesa");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -131,18 +132,31 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
         </p>
       </div>
 
-      {tx.status === "pending" && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="shrink-0 gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
-          onClick={() => effectMutation.mutate()}
-          disabled={effectMutation.isPending}
-        >
-          <Check className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Efetivar</span>
-        </Button>
-      )}
+      {tx.type === "expense" &&
+        (tx.status === "pending" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+            onClick={() => toggleStatusMutation.mutate("completed")}
+            disabled={toggleStatusMutation.isPending}
+          >
+            <Check className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Pagar</span>
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-1 border-primary/40 bg-primary/10 text-primary hover:bg-muted hover:text-muted-foreground"
+            onClick={() => toggleStatusMutation.mutate("pending")}
+            disabled={toggleStatusMutation.isPending}
+            title="Clique para reverter para despesa pendente"
+          >
+            <Check className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Pago</span>
+          </Button>
+        ))}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -151,11 +165,17 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {tx.status === "pending" && (
+          {tx.type === "expense" && (
             <>
-              <DropdownMenuItem onClick={() => effectMutation.mutate()}>
-                <Check className="mr-2 h-4 w-4" /> Efetivar
-              </DropdownMenuItem>
+              {tx.status === "pending" ? (
+                <DropdownMenuItem onClick={() => toggleStatusMutation.mutate("completed")}>
+                  <Check className="mr-2 h-4 w-4" /> Pagar
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => toggleStatusMutation.mutate("pending")}>
+                  <Check className="mr-2 h-4 w-4" /> Reverter para despesa
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
             </>
           )}
