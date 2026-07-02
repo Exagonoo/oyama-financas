@@ -90,6 +90,7 @@ export function TransactionForm({
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("none");
   const [recurrenceUntil, setRecurrenceUntil] = useState("");
   const [recurrenceTotal, setRecurrenceTotal] = useState("2");
+  const [recurrenceStart, setRecurrenceStart] = useState("1");
 
   useEffect(() => {
     if (!open) return;
@@ -116,6 +117,7 @@ export function TransactionForm({
       setRecurrenceType("none");
       setRecurrenceUntil("");
       setRecurrenceTotal("2");
+      setRecurrenceStart("1");
     }
   }, [open, transaction, defaultType, accounts]);
 
@@ -174,12 +176,19 @@ export function TransactionForm({
         }
       } else if (recurrenceType === "installments") {
         const total = parseInt(recurrenceTotal, 10);
+        const start = Math.max(1, parseInt(recurrenceStart, 10) || 1);
         if (!Number.isFinite(total) || total < 2 || total > 360)
           throw new Error("Informe um número de parcelas entre 2 e 360");
-        for (let i = 1; i < total; i++) occurrences.push(addMonths(date, i));
+        if (start > total)
+          throw new Error("Parcela atual não pode ser maior que o total de parcelas");
+        const count = total - start + 1;
+        for (let i = 1; i < count; i++) occurrences.push(addMonths(date, i));
       }
 
       const groupId = occurrences.length > 1 ? generateUUID() : null;
+      const instTotal = recurrenceType === "installments" ? parseInt(recurrenceTotal, 10) : null;
+      const instStart =
+        recurrenceType === "installments" ? Math.max(1, parseInt(recurrenceStart, 10) || 1) : null;
       const total = occurrences.length > 1 ? occurrences.length : null;
 
       const rows = occurrences.map((d, idx) => ({
@@ -187,12 +196,17 @@ export function TransactionForm({
         date: d,
         recurrence_type: recurrenceType === "none" ? "none" : recurrenceType,
         recurrence_group_id: groupId,
-        recurrence_index: total ? idx + 1 : null,
-        recurrence_total: total,
+        recurrence_index:
+          recurrenceType === "installments" && instStart !== null
+            ? instStart + idx
+            : total
+              ? idx + 1
+              : null,
+        recurrence_total: recurrenceType === "installments" ? instTotal : total,
         recurrence_until: recurrenceType === "until_date" ? recurrenceUntil : null,
         description:
-          recurrenceType === "installments" && total
-            ? `${basePayload.description} (${idx + 1}/${total})`
+          recurrenceType === "installments" && instTotal !== null && instStart !== null
+            ? `${basePayload.description} (${instStart + idx}/${instTotal})`
             : basePayload.description,
       }));
 
@@ -421,22 +435,43 @@ export function TransactionForm({
                     )}
 
                     {recurrenceType === "installments" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="rec-total">Número de parcelas</Label>
-                        <Input
-                          id="rec-total"
-                          inputMode="numeric"
-                          value={recurrenceTotal}
-                          onChange={(e) => setRecurrenceTotal(e.target.value)}
-                          min={2}
-                          max={360}
-                          placeholder="Ex.: 12"
-                          required
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Serão criados {Math.max(2, parseInt(recurrenceTotal) || 2)} lançamentos
-                          mensais a partir de {date}.
-                        </p>
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="rec-total">Número de parcelas</Label>
+                          <Input
+                            id="rec-total"
+                            inputMode="numeric"
+                            value={recurrenceTotal}
+                            onChange={(e) => setRecurrenceTotal(e.target.value)}
+                            min={2}
+                            max={360}
+                            placeholder="Ex.: 12"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="rec-start">Parcela atual</Label>
+                          <Input
+                            id="rec-start"
+                            inputMode="numeric"
+                            value={recurrenceStart}
+                            onChange={(e) => setRecurrenceStart(e.target.value)}
+                            min={1}
+                            max={recurrenceTotal}
+                            placeholder="Ex.: 1"
+                          />
+                        </div>
+                        {(() => {
+                          const total = Math.max(2, parseInt(recurrenceTotal) || 2);
+                          const start = Math.max(1, parseInt(recurrenceStart) || 1);
+                          const count = Math.max(1, total - start + 1);
+                          return (
+                            <p className="text-xs text-muted-foreground">
+                              Serão criados {count} lançamento{count !== 1 ? "s" : ""} mensais
+                              (parcela {start} a {total}).
+                            </p>
+                          );
+                        })()}
                       </div>
                     )}
 
