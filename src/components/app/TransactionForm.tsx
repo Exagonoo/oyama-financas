@@ -25,7 +25,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { accountsQuery, categoriesQuery, invalidateFinance } from "@/lib/queries";
 import { todayISO } from "@/lib/format";
 import { toast } from "sonner";
-import { Loader2, Repeat2 } from "lucide-react";
+import { Check, Loader2, Plus, Repeat2, X } from "lucide-react";
+import { CATEGORY_COLORS } from "@/lib/account-types";
 import type { Database } from "@/integrations/supabase/types";
 
 type TxRow = Database["public"]["Tables"]["transactions"]["Row"];
@@ -86,6 +87,43 @@ export function TransactionForm({
   const [completed, setCompleted] = useState(false);
   const [notes, setNotes] = useState("");
 
+  // Inline new category
+  const [newCatOpen, setNewCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatColor, setNewCatColor] = useState(CATEGORY_COLORS[0]);
+
+  const createCategoryMutation = useMutation({
+    mutationFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Não autenticado");
+      if (!newCatName.trim()) throw new Error("Informe o nome da categoria");
+      const kind = type === "income" ? "income" : "expense";
+      const { data, error } = await supabase
+        .from("categories")
+        .insert({
+          user_id: userId,
+          name: newCatName.trim(),
+          color: newCatColor,
+          kind,
+          icon: "more-horizontal",
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      invalidateFinance(queryClient);
+      setCategoryId(data.id);
+      setNewCatOpen(false);
+      setNewCatName("");
+      setNewCatColor(CATEGORY_COLORS[0]);
+      toast.success("Categoria criada");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // Recurrence (only for new transactions)
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("none");
   const [recurrenceUntil, setRecurrenceUntil] = useState("");
@@ -118,6 +156,9 @@ export function TransactionForm({
       setRecurrenceUntil("");
       setRecurrenceTotal("2");
       setRecurrenceStart("1");
+      setNewCatOpen(false);
+      setNewCatName("");
+      setNewCatColor(CATEGORY_COLORS[0]);
     }
   }, [open, transaction, defaultType, accounts]);
 
@@ -135,6 +176,7 @@ export function TransactionForm({
       const value = parseFloat(parseCurrency(amount));
       if (!Number.isFinite(value) || value <= 0) throw new Error("Valor inválido");
       if (!accountId) throw new Error("Selecione uma conta");
+      if (type !== "transfer" && !categoryId) throw new Error("Selecione uma categoria");
       if (type === "transfer" && (!transferAccountId || transferAccountId === accountId)) {
         throw new Error("Selecione uma conta de destino diferente");
       }
@@ -350,12 +392,29 @@ export function TransactionForm({
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger>
+                <Label>
+                  Categoria <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={categoryId}
+                  onValueChange={(v) => {
+                    if (v === "__new__") {
+                      setNewCatOpen(true);
+                    } else {
+                      setCategoryId(v);
+                    }
+                  }}
+                >
+                  <SelectTrigger className={!categoryId ? "border-destructive/50" : ""}>
                     <SelectValue placeholder="Selecione a categoria" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__new__">
+                      <span className="inline-flex items-center gap-2 text-primary">
+                        <Plus className="h-3.5 w-3.5" />
+                        Criar categoria nova
+                      </span>
+                    </SelectItem>
                     {filteredCategories.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         <span className="inline-flex items-center gap-2">
@@ -369,6 +428,68 @@ export function TransactionForm({
                     ))}
                   </SelectContent>
                 </Select>
+
+                {/* Inline new category form */}
+                {newCatOpen && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                    <p className="text-xs font-medium text-primary">
+                      Nova categoria ({type === "income" ? "receita" : "despesa"})
+                    </p>
+                    <Input
+                      autoFocus
+                      placeholder="Nome da categoria"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          createCategoryMutation.mutate();
+                        }
+                        if (e.key === "Escape") setNewCatOpen(false);
+                      }}
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {CATEGORY_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setNewCatColor(color)}
+                          className="h-5 w-5 rounded-full ring-offset-background transition-transform hover:scale-110"
+                          style={{
+                            backgroundColor: color,
+                            outline: newCatColor === color ? `2px solid ${color}` : "none",
+                            outlineOffset: 2,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => createCategoryMutation.mutate()}
+                        disabled={createCategoryMutation.isPending || !newCatName.trim()}
+                        className="gap-1"
+                      >
+                        {createCategoryMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5" />
+                        )}
+                        Criar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setNewCatOpen(false)}
+                        className="gap-1"
+                      >
+                        <X className="h-3.5 w-3.5" /> Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
