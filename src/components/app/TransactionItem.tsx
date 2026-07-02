@@ -97,7 +97,9 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
       <CategoryIcon icon={displayIcon} color={displayColor} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <p className="truncate text-sm font-medium">{tx.description}</p>
+          <p className="truncate text-sm font-medium">
+            {tx.description.replace(/\s*\(\d+\/\d+\)$/, "")}
+          </p>
           {tx.status === "pending" ? (
             <Badge variant="outline" className="shrink-0 border-warning/40 text-warning">
               Pendente

@@ -135,7 +135,7 @@ export function TransactionForm({
     if (!open) return;
     if (transaction) {
       setType(transaction.type);
-      setDescription(transaction.description);
+      setDescription(transaction.description.replace(/\s*\(\d+\/\d+\)$/, "").trim());
       setAmount(formatCurrency(String(Math.round(Number(transaction.amount) * 100))));
       setDate(transaction.date);
       setAccountId(transaction.account_id);
@@ -226,20 +226,10 @@ export function TransactionForm({
           newIndex !== null &&
           newTotal !== null
         ) {
-          // Strip any existing (X/Y) suffix from the base description
-          const baseDesc = basePayload.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
-
-          // Update current transaction
+          // Update current transaction (description stored clean, no (X/Y) suffix)
           const { error: errCurrent } = await supabase
             .from("transactions")
-            .update({
-              ...basePayload,
-              date,
-              ...recurrencePayload,
-              description: baseDesc
-                ? `${baseDesc} (${newIndex}/${newTotal})`
-                : basePayload.description,
-            })
+            .update({ ...basePayload, date, ...recurrencePayload })
             .eq("id", transaction.id);
           if (errCurrent) throw errCurrent;
 
@@ -260,17 +250,12 @@ export function TransactionForm({
                 toDelete.push(futureTxs[i].id);
                 continue;
               }
-              const futureBaseDesc = futureTxs[i].description
-                .replace(/\s*\(\d+\/\d+\)$/, "")
-                .trim();
               const { error: errFuture } = await supabase
                 .from("transactions")
                 .update({
                   recurrence_index: cascadeIndex,
                   recurrence_total: newTotal,
-                  description: futureBaseDesc
-                    ? `${futureBaseDesc} (${cascadeIndex}/${newTotal})`
-                    : futureTxs[i].description,
+                  description: basePayload.description,
                 })
                 .eq("id", futureTxs[i].id);
               if (errFuture) throw errFuture;
@@ -337,10 +322,7 @@ export function TransactionForm({
               : null,
         recurrence_total: recurrenceType === "installments" ? instTotal : total,
         recurrence_until: recurrenceType === "until_date" ? recurrenceUntil : null,
-        description:
-          recurrenceType === "installments" && instTotal !== null && instStart !== null
-            ? `${basePayload.description} (${instStart + idx}/${instTotal})`
-            : basePayload.description,
+        description: basePayload.description,
       }));
 
       const { error } = await supabase.from("transactions").insert(rows);
