@@ -260,7 +260,7 @@ function Dashboard() {
                 title="Nenhum lançamento ainda"
                 description="Comece adicionando seu primeiro lançamento."
                 action={
-                  <Button onClick={() => setFormOpen(true)}>
+                  <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
                     <Plus className="mr-2 h-4 w-4" /> Novo lançamento
                   </Button>
                 }
@@ -272,7 +272,7 @@ function Dashboard() {
                   tx={tx}
                   accounts={accounts}
                   categories={categories}
-                  onEdit={() => setFormOpen(true)}
+                  onEdit={(t) => { setEditing(t); setFormOpen(true); }}
                 />
               ))
             )}
@@ -285,7 +285,11 @@ function Dashboard() {
         </Card>
       </div>
 
-      <TransactionForm open={formOpen} onOpenChange={setFormOpen} />
+      <TransactionForm
+        open={formOpen}
+        onOpenChange={(o) => { setFormOpen(o); if (!o) setEditing(null); }}
+        transaction={editing}
+      />
     </div>
   );
 }
