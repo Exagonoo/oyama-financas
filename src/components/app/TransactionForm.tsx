@@ -253,8 +253,13 @@ export function TransactionForm({
           if (errFetch) throw errFetch;
 
           if (futureTxs && futureTxs.length > 0) {
+            const toDelete: string[] = [];
             for (let i = 0; i < futureTxs.length; i++) {
               const cascadeIndex = newIndex + 1 + i;
+              if (cascadeIndex > newTotal) {
+                toDelete.push(futureTxs[i].id);
+                continue;
+              }
               const futureBaseDesc = futureTxs[i].description
                 .replace(/\s*\(\d+\/\d+\)$/, "")
                 .trim();
@@ -269,6 +274,13 @@ export function TransactionForm({
                 })
                 .eq("id", futureTxs[i].id);
               if (errFuture) throw errFuture;
+            }
+            if (toDelete.length > 0) {
+              const { error: errDel } = await supabase
+                .from("transactions")
+                .delete()
+                .in("id", toDelete);
+              if (errDel) throw errDel;
             }
           }
         } else {
