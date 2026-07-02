@@ -206,6 +206,8 @@ export function TransactionForm({
           recurrence_until: recurrenceType === "until_date" ? recurrenceUntil || null : null,
           recurrence_total:
             recurrenceType === "installments" ? parseInt(recurrenceTotal, 10) || null : null,
+          recurrence_index:
+            recurrenceType === "installments" ? parseInt(recurrenceStart, 10) || null : null,
         };
 
         if (applyToAll && transaction.recurrence_group_id) {
@@ -589,20 +591,20 @@ export function TransactionForm({
                           placeholder="Ex.: 12"
                         />
                       </div>
-                      {isNew && (
-                        <div className="space-y-2">
-                          <Label htmlFor="rec-start">Parcela atual</Label>
-                          <Input
-                            id="rec-start"
-                            inputMode="numeric"
-                            value={recurrenceStart}
-                            onChange={(e) => setRecurrenceStart(e.target.value)}
-                            min={1}
-                            max={recurrenceTotal}
-                            placeholder="Ex.: 1"
-                          />
-                        </div>
-                      )}
+                      <div className="space-y-2">
+                        <Label htmlFor="rec-start">
+                          {isNew ? "Parcela atual" : "Número desta parcela"}
+                        </Label>
+                        <Input
+                          id="rec-start"
+                          inputMode="numeric"
+                          value={recurrenceStart}
+                          onChange={(e) => setRecurrenceStart(e.target.value)}
+                          min={1}
+                          max={recurrenceTotal}
+                          placeholder="Ex.: 1"
+                        />
+                      </div>
                       {isNew &&
                         (() => {
                           const total = Math.max(2, parseInt(recurrenceTotal) || 2);
@@ -612,6 +614,16 @@ export function TransactionForm({
                             <p className="text-xs text-muted-foreground">
                               Serão criados {count} lançamento{count !== 1 ? "s" : ""} mensais
                               (parcela {start} a {total}).
+                            </p>
+                          );
+                        })()}
+                      {!isNew &&
+                        (() => {
+                          const total = Math.max(2, parseInt(recurrenceTotal) || 2);
+                          const start = Math.max(1, parseInt(recurrenceStart) || 1);
+                          return (
+                            <p className="text-xs text-muted-foreground">
+                              Esta parcela: {start}/{total}
                             </p>
                           );
                         })()}
