@@ -124,11 +124,12 @@ export function TransactionForm({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Recurrence (only for new transactions)
+  // Recurrence
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("none");
   const [recurrenceUntil, setRecurrenceUntil] = useState("");
   const [recurrenceTotal, setRecurrenceTotal] = useState("2");
   const [recurrenceStart, setRecurrenceStart] = useState("1");
+  const [applyToAll, setApplyToAll] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -142,6 +143,11 @@ export function TransactionForm({
       setCategoryId(transaction.category_id ?? "");
       setCompleted(transaction.status === "completed");
       setNotes(transaction.notes ?? "");
+      setRecurrenceType((transaction.recurrence_type as RecurrenceType) ?? "none");
+      setRecurrenceUntil(transaction.recurrence_until ?? "");
+      setRecurrenceTotal(String(transaction.recurrence_total ?? 2));
+      setRecurrenceStart(String(transaction.recurrence_index ?? 1));
+      setApplyToAll(false);
     } else {
       setType(defaultType);
       setDescription("");
@@ -156,6 +162,7 @@ export function TransactionForm({
       setRecurrenceUntil("");
       setRecurrenceTotal("2");
       setRecurrenceStart("1");
+      setApplyToAll(false);
       setNewCatOpen(false);
       setNewCatName("");
       setNewCatColor(CATEGORY_COLORS[0]);
@@ -194,11 +201,26 @@ export function TransactionForm({
       };
 
       if (transaction) {
-        const { error } = await supabase
-          .from("transactions")
-          .update({ ...basePayload, date })
-          .eq("id", transaction.id);
-        if (error) throw error;
+        const recurrencePayload = {
+          recurrence_type: recurrenceType,
+          recurrence_until: recurrenceType === "until_date" ? recurrenceUntil || null : null,
+          recurrence_total:
+            recurrenceType === "installments" ? parseInt(recurrenceTotal, 10) || null : null,
+        };
+
+        if (applyToAll && transaction.recurrence_group_id) {
+          const { error } = await supabase
+            .from("transactions")
+            .update({ ...basePayload, ...recurrencePayload })
+            .eq("recurrence_group_id", transaction.recurrence_group_id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("transactions")
+            .update({ ...basePayload, date, ...recurrencePayload })
+            .eq("id", transaction.id);
+          if (error) throw error;
+        }
         return;
       }
 
@@ -505,71 +527,69 @@ export function TransactionForm({
               <Switch id="status" checked={completed} onCheckedChange={setCompleted} />
             </div>
 
-            {/* Recurrence — only for new transactions */}
-            {isNew && (
-              <div className="space-y-3 rounded-lg border border-border bg-card/40 px-3 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Repeat2 className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="recurrence-toggle" className="cursor-pointer">
-                      Recorrente
-                    </Label>
-                  </div>
-                  <Switch
-                    id="recurrence-toggle"
-                    checked={recurrenceType !== "none"}
-                    onCheckedChange={(v) => setRecurrenceType(v ? "fixed" : "none")}
-                  />
+            {/* Recurrence */}
+            <div className="space-y-3 rounded-lg border border-border bg-card/40 px-3 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Repeat2 className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="recurrence-toggle" className="cursor-pointer">
+                    Recorrente
+                  </Label>
                 </div>
+                <Switch
+                  id="recurrence-toggle"
+                  checked={recurrenceType !== "none"}
+                  onCheckedChange={(v) => setRecurrenceType(v ? "fixed" : "none")}
+                />
+              </div>
 
-                {recurrenceType !== "none" && (
-                  <div className="space-y-3 pt-1">
+              {recurrenceType !== "none" && (
+                <div className="space-y-3 pt-1">
+                  <div className="space-y-2">
+                    <Label>Tipo de recorrência</Label>
+                    <Select
+                      value={recurrenceType}
+                      onValueChange={(v) => setRecurrenceType(v as RecurrenceType)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Fixa (sem vencimento)</SelectItem>
+                        <SelectItem value="until_date">Por data (repete até…)</SelectItem>
+                        <SelectItem value="installments">Parcelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {recurrenceType === "until_date" && (
                     <div className="space-y-2">
-                      <Label>Tipo de recorrência</Label>
-                      <Select
-                        value={recurrenceType}
-                        onValueChange={(v) => setRecurrenceType(v as RecurrenceType)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="fixed">Fixa (sem vencimento)</SelectItem>
-                          <SelectItem value="until_date">Por data (repete até…)</SelectItem>
-                          <SelectItem value="installments">Parcelado</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="rec-until">Repetir até</Label>
+                      <Input
+                        id="rec-until"
+                        type="date"
+                        value={recurrenceUntil}
+                        onChange={(e) => setRecurrenceUntil(e.target.value)}
+                        min={addMonths(date, 1)}
+                      />
                     </div>
+                  )}
 
-                    {recurrenceType === "until_date" && (
+                  {recurrenceType === "installments" && (
+                    <div className="space-y-3">
                       <div className="space-y-2">
-                        <Label htmlFor="rec-until">Repetir até</Label>
+                        <Label htmlFor="rec-total">Número de parcelas</Label>
                         <Input
-                          id="rec-until"
-                          type="date"
-                          value={recurrenceUntil}
-                          onChange={(e) => setRecurrenceUntil(e.target.value)}
-                          min={addMonths(date, 1)}
-                          required
+                          id="rec-total"
+                          inputMode="numeric"
+                          value={recurrenceTotal}
+                          onChange={(e) => setRecurrenceTotal(e.target.value)}
+                          min={2}
+                          max={360}
+                          placeholder="Ex.: 12"
                         />
                       </div>
-                    )}
-
-                    {recurrenceType === "installments" && (
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="rec-total">Número de parcelas</Label>
-                          <Input
-                            id="rec-total"
-                            inputMode="numeric"
-                            value={recurrenceTotal}
-                            onChange={(e) => setRecurrenceTotal(e.target.value)}
-                            min={2}
-                            max={360}
-                            placeholder="Ex.: 12"
-                            required
-                          />
-                        </div>
+                      {isNew && (
                         <div className="space-y-2">
                           <Label htmlFor="rec-start">Parcela atual</Label>
                           <Input
@@ -582,7 +602,9 @@ export function TransactionForm({
                             placeholder="Ex.: 1"
                           />
                         </div>
-                        {(() => {
+                      )}
+                      {isNew &&
+                        (() => {
                           const total = Math.max(2, parseInt(recurrenceTotal) || 2);
                           const start = Math.max(1, parseInt(recurrenceStart) || 1);
                           const count = Math.max(1, total - start + 1);
@@ -593,18 +615,43 @@ export function TransactionForm({
                             </p>
                           );
                         })()}
-                      </div>
-                    )}
+                    </div>
+                  )}
 
-                    {recurrenceType === "fixed" && (
-                      <p className="text-xs text-muted-foreground">
-                        Serão criados 24 lançamentos mensais a partir de {date}.
-                      </p>
-                    )}
+                  {recurrenceType === "fixed" && isNew && (
+                    <p className="text-xs text-muted-foreground">
+                      Serão criados 24 lançamentos mensais a partir de {date}.
+                    </p>
+                  )}
+
+                  {/* Apply to all toggle — only when editing a grouped transaction */}
+                  {!isNew && transaction?.recurrence_group_id && (
+                    <div className="flex items-center justify-between rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+                      <div>
+                        <p className="text-xs font-medium">Aplicar a todos da série</p>
+                        <p className="text-xs text-muted-foreground">
+                          Atualiza todos os lançamentos deste grupo.
+                        </p>
+                      </div>
+                      <Switch checked={applyToAll} onCheckedChange={setApplyToAll} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Apply to all when recurrence is none but editing a series */}
+              {recurrenceType === "none" && !isNew && transaction?.recurrence_group_id && (
+                <div className="flex items-center justify-between rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+                  <div>
+                    <p className="text-xs font-medium">Aplicar a todos da série</p>
+                    <p className="text-xs text-muted-foreground">
+                      Atualiza todos os lançamentos deste grupo.
+                    </p>
                   </div>
-                )}
-              </div>
-            )}
+                  <Switch checked={applyToAll} onCheckedChange={setApplyToAll} />
+                </div>
+              )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="notes">Observações</Label>
