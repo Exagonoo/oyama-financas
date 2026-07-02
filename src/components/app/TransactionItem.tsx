@@ -46,13 +46,21 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
   const category = categories.find((c) => c.id === tx.category_id);
 
   const removeMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("transactions").delete().eq("id", tx.id);
-      if (error) throw error;
+    mutationFn: async (mode: "single" | "all") => {
+      if (mode === "all" && tx.recurrence_group_id) {
+        const { error } = await supabase
+          .from("transactions")
+          .delete()
+          .eq("recurrence_group_id", tx.recurrence_group_id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("transactions").delete().eq("id", tx.id);
+        if (error) throw error;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_d, mode) => {
       invalidateFinance(queryClient);
-      toast.success("Lançamento excluído");
+      toast.success(mode === "all" ? "Todos os lançamentos excluídos" : "Lançamento excluído");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -167,17 +175,39 @@ export function TransactionItem({ tx, accounts, categories, onEdit }: Transactio
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
-                <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                <AlertDialogDescription>
+                  {tx.recurrence_group_id
+                    ? "Este lançamento faz parte de uma série. O que deseja excluir?"
+                    : "Esta ação não pode ser desfeita."}
+                </AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => removeMutation.mutate()}
-                >
-                  Excluir
-                </AlertDialogAction>
-              </AlertDialogFooter>
+              {tx.recurrence_group_id ? (
+                <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive/70 text-destructive-foreground hover:bg-destructive/60"
+                    onClick={() => removeMutation.mutate("single")}
+                  >
+                    Somente este
+                  </AlertDialogAction>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => removeMutation.mutate("all")}
+                  >
+                    Todos da série
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              ) : (
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => removeMutation.mutate("single")}
+                  >
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              )}
             </AlertDialogContent>
           </AlertDialog>
         </DropdownMenuContent>
