@@ -51,6 +51,9 @@ function Dashboard() {
   const { mes } = Route.useSearch();
   const month = useMemo(() => parseMonthKey(mes), [mes]);
   const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<
+    import("@/integrations/supabase/types").Database["public"]["Tables"]["transactions"]["Row"] | null
+  >(null);
 
   const { data: balances = [] } = useQuery(accountBalancesQuery());
   const { data: accounts = [] } = useQuery(accountsQuery());
