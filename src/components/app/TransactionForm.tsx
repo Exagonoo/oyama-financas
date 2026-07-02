@@ -201,21 +201,76 @@ export function TransactionForm({
       };
 
       if (transaction) {
+        const newIndex =
+          recurrenceType === "installments" ? parseInt(recurrenceStart, 10) || 1 : null;
+        const newTotal =
+          recurrenceType === "installments" ? parseInt(recurrenceTotal, 10) || null : null;
+
         const recurrencePayload = {
           recurrence_type: recurrenceType,
           recurrence_until: recurrenceType === "until_date" ? recurrenceUntil || null : null,
-          recurrence_total:
-            recurrenceType === "installments" ? parseInt(recurrenceTotal, 10) || null : null,
-          recurrence_index:
-            recurrenceType === "installments" ? parseInt(recurrenceStart, 10) || null : null,
+          recurrence_total: newTotal,
+          recurrence_index: newIndex,
         };
 
         if (applyToAll && transaction.recurrence_group_id) {
+          // Apply same values to every tx in the group
           const { error } = await supabase
             .from("transactions")
             .update({ ...basePayload, ...recurrencePayload })
             .eq("recurrence_group_id", transaction.recurrence_group_id);
           if (error) throw error;
+        } else if (
+          recurrenceType === "installments" &&
+          transaction.recurrence_group_id &&
+          newIndex !== null &&
+          newTotal !== null
+        ) {
+          // Strip any existing (X/Y) suffix from the base description
+          const baseDesc = basePayload.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
+
+          // Update current transaction
+          const { error: errCurrent } = await supabase
+            .from("transactions")
+            .update({
+              ...basePayload,
+              date,
+              ...recurrencePayload,
+              description: baseDesc
+                ? `${baseDesc} (${newIndex}/${newTotal})`
+                : basePayload.description,
+            })
+            .eq("id", transaction.id);
+          if (errCurrent) throw errCurrent;
+
+          // Cascade: fetch all future txs in the group (date > current), sorted
+          const { data: futureTxs, error: errFetch } = await supabase
+            .from("transactions")
+            .select("id, description")
+            .eq("recurrence_group_id", transaction.recurrence_group_id)
+            .gt("date", transaction.date)
+            .order("date");
+          if (errFetch) throw errFetch;
+
+          if (futureTxs && futureTxs.length > 0) {
+            for (let i = 0; i < futureTxs.length; i++) {
+              const cascadeIndex = newIndex + 1 + i;
+              const futureBaseDesc = futureTxs[i].description
+                .replace(/\s*\(\d+\/\d+\)$/, "")
+                .trim();
+              const { error: errFuture } = await supabase
+                .from("transactions")
+                .update({
+                  recurrence_index: cascadeIndex,
+                  recurrence_total: newTotal,
+                  description: futureBaseDesc
+                    ? `${futureBaseDesc} (${cascadeIndex}/${newTotal})`
+                    : futureTxs[i].description,
+                })
+                .eq("id", futureTxs[i].id);
+              if (errFuture) throw errFuture;
+            }
+          }
         } else {
           const { error } = await supabase
             .from("transactions")
