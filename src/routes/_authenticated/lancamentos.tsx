@@ -26,9 +26,9 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowDownRight,
-  ArrowLeftRight,
   ArrowUpRight,
   CalendarDays,
+  Clock,
   LayoutList,
   List,
   PiggyBank,
@@ -81,6 +81,12 @@ function LancamentosPage() {
     .reduce((s, t) => s + Number(t.amount), 0);
   const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
   const balance = income - expense;
+  const expensePaid = txs
+    .filter((t) => t.type === "expense" && t.status === "completed")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const expensePending = txs
+    .filter((t) => t.type === "expense" && t.status === "pending")
+    .reduce((s, t) => s + Number(t.amount), 0);
 
   const filtered = txs.filter((t) => {
     if (typeFilter !== "all" && t.type !== typeFilter) return false;
@@ -130,7 +136,7 @@ function LancamentosPage() {
       </div>
 
       {/* Totais do mês */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
@@ -166,6 +172,28 @@ function LancamentosPage() {
               )}
             >
               {formatBRL(balance)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">A Pagar</p>
+              <Clock className="h-4 w-4 text-warning" />
+            </div>
+            <p className="mt-1 text-xl font-bold tabular-nums text-warning">
+              {formatBRL(expensePending)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Pago</p>
+              <ArrowDownRight className="h-4 w-4 text-primary" />
+            </div>
+            <p className="mt-1 text-xl font-bold tabular-nums text-primary">
+              {formatBRL(expensePaid)}
             </p>
           </CardContent>
         </Card>
