@@ -83,7 +83,7 @@ export function TransactionForm({
   const [accountId, setAccountId] = useState<string>("");
   const [transferAccountId, setTransferAccountId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
-  const [completed, setCompleted] = useState(true);
+  const [completed, setCompleted] = useState(false);
   const [notes, setNotes] = useState("");
 
   // Recurrence (only for new transactions)
@@ -112,7 +112,7 @@ export function TransactionForm({
       setAccountId(accounts[0]?.id ?? "");
       setTransferAccountId("");
       setCategoryId("");
-      setCompleted(true);
+      setCompleted(false);
       setNotes("");
       setRecurrenceType("none");
       setRecurrenceUntil("");
