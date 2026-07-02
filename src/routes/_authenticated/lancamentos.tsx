@@ -1,7 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { accountsQuery, categoriesQuery, transactionsMonthQuery } from "@/lib/queries";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import {
+  accountsQuery,
+  categoriesQuery,
+  invalidateFinance,
+  transactionsMonthQuery,
+} from "@/lib/queries";
+import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { MonthPicker } from "@/components/app/MonthPicker";
 import { TransactionItem } from "@/components/app/TransactionItem";
 import { TransactionForm } from "@/components/app/TransactionForm";
@@ -485,11 +493,29 @@ function CalendarioView({
 }
 
 /* ── Lista ─────────────────────────────────────────────────── */
+function fmtCurrency(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  const cents = parseInt(digits, 10);
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
+}
+
+function parseCurrency(formatted: string): number {
+  const digits = formatted.replace(/\D/g, "");
+  if (!digits) return 0;
+  return parseInt(digits, 10) / 100;
+}
+
+type EditCell = { id: string; field: string; value: string };
+
 function ListaView({
   filtered,
   accounts,
   categories,
-  onEdit,
   onNew,
 }: {
   filtered: TxRow[];
@@ -498,7 +524,46 @@ function ListaView({
   onEdit: (tx: TxRow) => void;
   onNew: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const [editCell, setEditCell] = useState<EditCell | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ id, field, value }: EditCell) => {
+      const payload: Record<string, unknown> = {};
+      if (field === "amount") payload.amount = parseCurrency(value);
+      else if (field === "status") payload.status = value;
+      else payload[field] = value || null;
+
+      if (field === "amount" && (payload.amount as number) <= 0) throw new Error("Valor inválido");
+
+      const { error } = await supabase.from("transactions").update(payload).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateFinance(queryClient),
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: () => setEditCell(null),
+  });
+
+  function startEdit(tx: TxRow, field: string, value: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditCell({ id: tx.id, field, value });
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function commitEdit() {
+    if (editCell) saveMutation.mutate(editCell);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") commitEdit();
+    if (e.key === "Escape") setEditCell(null);
+  }
+
+  const filteredCategories = (type: string) =>
+    categories.filter((c) => (type === "income" ? c.kind === "income" : c.kind === "expense"));
 
   if (sorted.length === 0) {
     return (
@@ -540,7 +605,6 @@ function ListaView({
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Valor
                 </th>
-                <th className="px-2 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -555,54 +619,208 @@ function ListaView({
                       ? "text-destructive"
                       : "text-muted-foreground";
                 const [, , day] = tx.date.split("-");
+                const isLast = i === sorted.length - 1;
+
+                const isEditing = (field: string) =>
+                  editCell?.id === tx.id && editCell.field === field;
 
                 return (
                   <tr
                     key={tx.id}
                     className={cn(
-                      "cursor-pointer transition-colors hover:bg-accent/30",
-                      i !== sorted.length - 1 && "border-b border-border/50",
+                      "transition-colors hover:bg-accent/20",
+                      !isLast && "border-b border-border/50",
                     )}
-                    onClick={() => onEdit(tx)}
                   >
-                    <td className="px-4 py-3 tabular-nums text-muted-foreground">{day}</td>
-                    <td className="px-4 py-3 font-medium">
-                      <span className="line-clamp-1">{tx.description}</span>
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
-                      {category ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: category.color }}
-                          />
-                          {category.name}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/50">—</span>
-                      )}
-                    </td>
-                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                      {account?.name ?? "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {tx.status === "pending" ? (
-                        <Badge variant="outline" className="border-warning/40 text-warning">
-                          Pendente
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-primary/40 text-primary">
-                          Pago
-                        </Badge>
-                      )}
-                    </td>
+                    {/* Data */}
                     <td
-                      className={cn("px-4 py-3 text-right font-semibold tabular-nums", valueClass)}
+                      className="cursor-pointer px-4 py-2 tabular-nums text-muted-foreground"
+                      onClick={(e) => startEdit(tx, "date", tx.date, e)}
                     >
-                      {sign}
-                      {formatBRL(Number(tx.amount))}
+                      {isEditing("date") ? (
+                        <Input
+                          ref={inputRef}
+                          type="date"
+                          className="h-7 w-32 px-1 py-0 text-xs"
+                          value={editCell!.value}
+                          onChange={(e) => setEditCell({ ...editCell!, value: e.target.value })}
+                          onBlur={commitEdit}
+                          onKeyDown={onKeyDown}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="rounded px-1 hover:bg-accent/40">{day}</span>
+                      )}
                     </td>
-                    <td className="px-2 py-3" />
+
+                    {/* Descrição */}
+                    <td
+                      className="cursor-pointer px-4 py-2 font-medium"
+                      onClick={(e) => startEdit(tx, "description", tx.description, e)}
+                    >
+                      {isEditing("description") ? (
+                        <Input
+                          ref={inputRef}
+                          className="h-7 min-w-[140px] px-1 py-0 text-sm"
+                          value={editCell!.value}
+                          onChange={(e) => setEditCell({ ...editCell!, value: e.target.value })}
+                          onBlur={commitEdit}
+                          onKeyDown={onKeyDown}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="line-clamp-1 rounded px-1 hover:bg-accent/40">
+                          {tx.description}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Categoria */}
+                    <td className="hidden cursor-pointer px-4 py-2 text-muted-foreground sm:table-cell">
+                      {isEditing("category_id") ? (
+                        <select
+                          autoFocus
+                          className="rounded border border-input bg-card px-1 py-0.5 text-xs text-foreground focus:outline-none"
+                          value={editCell!.value}
+                          onChange={(e) => {
+                            saveMutation.mutate({
+                              id: tx.id,
+                              field: "category_id",
+                              value: e.target.value,
+                            });
+                          }}
+                          onBlur={() => setEditCell(null)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="">— sem categoria —</option>
+                          {filteredCategories(tx.type).map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded px-1 hover:bg-accent/40"
+                          onClick={(e) => startEdit(tx, "category_id", tx.category_id ?? "", e)}
+                        >
+                          {category ? (
+                            <>
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: category.color }}
+                              />
+                              {category.name}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground/40">— clique para definir</span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Conta */}
+                    <td className="hidden cursor-pointer px-4 py-2 text-muted-foreground md:table-cell">
+                      {isEditing("account_id") ? (
+                        <select
+                          autoFocus
+                          className="rounded border border-input bg-card px-1 py-0.5 text-xs text-foreground focus:outline-none"
+                          value={editCell!.value}
+                          onChange={(e) => {
+                            saveMutation.mutate({
+                              id: tx.id,
+                              field: "account_id",
+                              value: e.target.value,
+                            });
+                          }}
+                          onBlur={() => setEditCell(null)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {accounts
+                            .filter((a) => !a.archived)
+                            .map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.name}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <span
+                          className="rounded px-1 hover:bg-accent/40"
+                          onClick={(e) => startEdit(tx, "account_id", tx.account_id, e)}
+                        >
+                          {account?.name ?? "—"}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          saveMutation.mutate({
+                            id: tx.id,
+                            field: "status",
+                            value: tx.status === "pending" ? "completed" : "pending",
+                          });
+                        }}
+                        className="cursor-pointer"
+                        title="Clique para alternar status"
+                      >
+                        {tx.status === "pending" ? (
+                          <Badge
+                            variant="outline"
+                            className="border-warning/40 text-warning hover:bg-warning/10"
+                          >
+                            Pendente
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-primary/40 text-primary hover:bg-primary/10"
+                          >
+                            Pago
+                          </Badge>
+                        )}
+                      </button>
+                    </td>
+
+                    {/* Valor */}
+                    <td
+                      className={cn(
+                        "cursor-pointer px-4 py-2 text-right font-semibold tabular-nums",
+                        valueClass,
+                      )}
+                      onClick={(e) =>
+                        startEdit(
+                          tx,
+                          "amount",
+                          fmtCurrency(String(Math.round(Number(tx.amount) * 100))),
+                          e,
+                        )
+                      }
+                    >
+                      {isEditing("amount") ? (
+                        <Input
+                          ref={inputRef}
+                          inputMode="numeric"
+                          className="h-7 w-28 px-1 py-0 text-right text-sm"
+                          value={editCell!.value}
+                          onChange={(e) =>
+                            setEditCell({ ...editCell!, value: fmtCurrency(e.target.value) })
+                          }
+                          onBlur={commitEdit}
+                          onKeyDown={onKeyDown}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="rounded px-1 hover:bg-accent/40">
+                          {sign}
+                          {formatBRL(Number(tx.amount))}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
